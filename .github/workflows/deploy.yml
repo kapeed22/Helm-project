@@ -1,0 +1,95 @@
+name: Build, Push GHCR & Deploy via Helm
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/backend:latest
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/frontend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/frontend:latest
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy All Environments via Helm over SSM
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          COMMIT_SHA="${{ github.sha }}"
+          
+          COMMANDS=$(cat << EOF
+          cd /home/ubuntu/app
+          git pull origin main
+          
+          # Create Namespaces if they don't exist
+          kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create host storage directories for PVs
+          sudo mkdir -p /mnt/data/dev /mnt/data/test /mnt/data/prod
+
+          # Execute Helm Upgrades with Dynamic Tags
+          helm upgrade --install dev-release ./three-tier-app \
+            -f ./three-tier-app/values-dev.yaml \
+            --set image.repositoryOwner=${REPO_OWNER} \
+            --set image.tag=${COMMIT_SHA}
+
+          helm upgrade --install test-release ./three-tier-app \
+            -f ./three-tier-app/values-test.yaml \
+            --set image.repositoryOwner=${REPO_OWNER} \
+            --set image.tag=${COMMIT_SHA}
+
+          helm upgrade --install prod-release ./three-tier-app \
+            -f ./three-tier-app/values-prod.yaml \
+            --set image.repositoryOwner=${REPO_OWNER} \
+            --set image.tag=${COMMIT_SHA}
+          EOF
+          )
+          
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_MASTER_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[$COMMANDS]" \
+            --query "Command.CommandId" \
+            --output text)
+            
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ secrets.EC2_MASTER_INSTANCE_ID }}"

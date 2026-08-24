@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "three-tier.fullname" . }}-db
+  namespace: {{ .Values.global.environment }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      env: {{ .Values.global.environment }}
+  template:
+    metadata:
+      labels:
+        app: postgres
+        env: {{ .Values.global.environment }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.db.image }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.db.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.db.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.db.dbName | quote }}
+          ports:
+            - containerPort: {{ .Values.db.port }}
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: {{ include "three-tier.fullname" . }}-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "three-tier.fullname" . }}-db-svc
+  namespace: {{ .Values.global.environment }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+    env: {{ .Values.global.environment }}

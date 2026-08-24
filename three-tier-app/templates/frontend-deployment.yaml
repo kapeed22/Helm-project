@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "three-tier.fullname" . }}-frontend
+  namespace: {{ .Values.global.environment }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend
+      env: {{ .Values.global.environment }}
+  template:
+    metadata:
+      labels:
+        app: frontend
+        env: {{ .Values.global.environment }}
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/{{ .Values.image.repositoryOwner }}/frontend:{{ .Values.image.tag }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80

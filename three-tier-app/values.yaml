@@ -1,0 +1,21 @@
+global:
+  environment: dev
+
+image:
+  repositoryOwner: kapeed22
+  tag: latest
+
+storage:
+  capacity: 2Gi
+  storageClassName: manual
+
+redis:
+  image: redis:7-alpine
+  port: 6379
+
+db:
+  image: postgres:15-alpine
+  port: 5432
+  user: admin
+  password: supersecretpassword
+  dbName: appdb

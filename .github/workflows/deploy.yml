@@ -59,7 +59,7 @@ jobs:
           export PATH=\$PATH:/usr/local/bin:/usr/bin:/bin
           export KUBECONFIG=/home/ubuntu/.kube/config
 
-          # Clone repo if not present or pull latest changes
+          # Clone repo if not present or pull latest code
           if [ ! -d "/home/ubuntu/app/.git" ]; then
             echo "Cloning repository..."
             rm -rf /home/ubuntu/app
@@ -72,25 +72,25 @@ jobs:
           fi
 
           # Ensure Namespaces exist
-          kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+          kubectl --kubeconfig=/home/ubuntu/.kube/config create namespace dev --dry-run=client -o yaml | kubectl --kubeconfig=/home/ubuntu/.kube/config apply -f -
+          kubectl --kubeconfig=/home/ubuntu/.kube/config create namespace test --dry-run=client -o yaml | kubectl --kubeconfig=/home/ubuntu/.kube/config apply -f -
+          kubectl --kubeconfig=/home/ubuntu/.kube/config create namespace prod --dry-run=client -o yaml | kubectl --kubeconfig=/home/ubuntu/.kube/config apply -f -
 
           # Create host storage paths
           sudo mkdir -p /mnt/data/dev /mnt/data/test /mnt/data/prod
 
-          # Execute Helm Upgrades
-          helm upgrade --install dev-release ./three-tier-app \
+          # Execute Helm Upgrades with explicit kubeconfig
+          helm --kubeconfig=/home/ubuntu/.kube/config upgrade --install dev-release ./three-tier-app \
             -f ./three-tier-app/values-dev.yaml \
             --set image.repositoryOwner=${REPO_OWNER} \
             --set image.tag=${COMMIT_SHA}
 
-          helm upgrade --install test-release ./three-tier-app \
+          helm --kubeconfig=/home/ubuntu/.kube/config upgrade --install test-release ./three-tier-app \
             -f ./three-tier-app/values-test.yaml \
             --set image.repositoryOwner=${REPO_OWNER} \
             --set image.tag=${COMMIT_SHA}
 
-          helm upgrade --install prod-release ./three-tier-app \
+          helm --kubeconfig=/home/ubuntu/.kube/config upgrade --install prod-release ./three-tier-app \
             -f ./three-tier-app/values-prod.yaml \
             --set image.repositoryOwner=${REPO_OWNER} \
             --set image.tag=${COMMIT_SHA}
@@ -100,7 +100,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_MASTER_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"su - ubuntu -c 'echo $SCRIPT | base64 -d | bash'\"]" \
+            --parameters "commands=[\"su - ubuntu -c 'echo $SCRIPT | base64 -d | KUBECONFIG=/home/ubuntu/.kube/config bash'\"]" \
             --query "Command.CommandId" \
             --output text)
 

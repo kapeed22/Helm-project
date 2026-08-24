@@ -1,0 +1,8 @@
+global:
+  environment: test
+storage:
+  hostPath: /mnt/data/test
+frontend:
+  replicaCount: 2
+backend:
+  replicaCount: 2

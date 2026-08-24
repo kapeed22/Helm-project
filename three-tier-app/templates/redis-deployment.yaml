@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "three-tier.fullname" . }}-redis
+  namespace: {{ .Values.global.environment }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      env: {{ .Values.global.environment }}
+  template:
+    metadata:
+      labels:
+        app: redis
+        env: {{ .Values.global.environment }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          ports:
+            - containerPort: {{ .Values.redis.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "three-tier.fullname" . }}-redis-svc
+  namespace: {{ .Values.global.environment }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+    env: {{ .Values.global.environment }}

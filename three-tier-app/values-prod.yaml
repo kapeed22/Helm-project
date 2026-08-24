@@ -1,0 +1,8 @@
+global:
+  environment: prod
+storage:
+  hostPath: /mnt/data/prod
+frontend:
+  replicaCount: 3
+backend:
+  replicaCount: 3

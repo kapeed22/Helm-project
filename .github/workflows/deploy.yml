@@ -52,20 +52,18 @@ jobs:
         run: |
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           COMMIT_SHA="${{ github.sha }}"
-          
-          COMMANDS=$(cat << EOF
+
+          # Base64 encode the script to prevent multiline string parsing errors in AWS CLI
+          SCRIPT=$(cat << EOF | base64 -w 0
           cd /home/ubuntu/app
           git pull origin main
-          
-          # Create Namespaces if they don't exist
+
           kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
           kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
           kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
 
-          # Create host storage directories for PVs
           sudo mkdir -p /mnt/data/dev /mnt/data/test /mnt/data/prod
 
-          # Execute Helm Upgrades with Dynamic Tags
           helm upgrade --install dev-release ./three-tier-app \
             -f ./three-tier-app/values-dev.yaml \
             --set image.repositoryOwner=${REPO_OWNER} \
@@ -82,14 +80,15 @@ jobs:
             --set image.tag=${COMMIT_SHA}
           EOF
           )
-          
+
+          # Send base64 decode and execute command safely via SSM
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_MASTER_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[$COMMANDS]" \
+            --parameters "commands=[\"echo $SCRIPT | base64 -d | bash\"]" \
             --query "Command.CommandId" \
             --output text)
-            
+
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.EC2_MASTER_INSTANCE_ID }}"

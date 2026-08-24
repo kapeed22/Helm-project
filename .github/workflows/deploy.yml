@@ -57,6 +57,15 @@ jobs:
           SCRIPT=$(cat << EOF | base64 -w 0
           set -e
           export PATH=\$PATH:/usr/local/bin:/usr/bin:/bin
+
+          # Ensure .kube/config exists for ubuntu user
+          if [ ! -f "/home/ubuntu/.kube/config" ]; then
+            echo "Kubeconfig missing in home folder, copying from admin.conf..."
+            sudo mkdir -p /home/ubuntu/.kube
+            sudo cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/.kube
+          fi
+
           export KUBECONFIG=/home/ubuntu/.kube/config
 
           # Clone repo if not present or pull latest code

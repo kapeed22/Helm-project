@@ -1,0 +1,8 @@
+global:
+  environment: dev
+storage:
+  hostPath: /mnt/data/dev
+frontend:
+  replicaCount: 1
+backend:
+  replicaCount: 1
